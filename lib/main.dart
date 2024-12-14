@@ -3,10 +3,15 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   Hive.registerAdapter(TaskAdapter());
   Hive.registerAdapter(DateTimeAdapter());
-  await Hive.openBox<Task>('tasks');
+  try {
+    await Hive.openBox<Task>('tasks');
+  } catch (e) {
+    print("Error opening Hive box: $e");
+  }
   runApp(const MyApp());
 }
 
@@ -42,7 +47,7 @@ class Task extends HiveObject {
   late bool completed;
 
   @HiveField(3)
-  late DateTime dueDate;
+  DateTime? dueDate;
 }
 
 class TaskProvider extends ChangeNotifier {
@@ -61,7 +66,7 @@ class TaskProvider extends ChangeNotifier {
     }
   }
 
-  void addTask(String title, String description, DateTime dueDate) {
+  void addTask(String title, String description, DateTime? dueDate) {
     final task = Task()
       ..title = title
       ..description = description
@@ -71,8 +76,8 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateTask(int index, String title, String description, DateTime dueDate,
-      bool completed) {
+  void updateTask(int index, String title, String description,
+      DateTime? dueDate, bool completed) {
     final task = _taskBox.getAt(index);
     if (task != null) {
       task
@@ -87,6 +92,15 @@ class TaskProvider extends ChangeNotifier {
 
   void deleteTask(int index) {
     _taskBox.deleteAt(index);
+    notifyListeners();
+  }
+
+  void deleteCompletedTasks() {
+    final completedTasks =
+        _taskBox.values.where((task) => task.completed).toList();
+    for (var task in completedTasks) {
+      task.delete();
+    }
     notifyListeners();
   }
 
@@ -171,7 +185,11 @@ class TaskScreen extends StatelessWidget {
                       : TextDecoration.none,
                 ),
               ),
-              subtitle: Text('Due: ${task.dueDate.toLocal()}'),
+              subtitle: Text(
+                task.dueDate != null
+                    ? 'Due: ${task.dueDate!.toLocal()}'
+                    : 'No due date',
+              ),
               trailing: IconButton(
                 icon: Icon(
                   task.completed
@@ -192,59 +210,91 @@ class TaskScreen extends StatelessWidget {
           },
         );
       }),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          titleController.clear();
-          descriptionController.clear();
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Add Task'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: 'Title'),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              titleController.clear();
+              descriptionController.clear();
+              DateTime? selectedDate;
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Add Task'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: titleController,
+                        decoration: const InputDecoration(labelText: 'Title'),
+                      ),
+                      TextField(
+                        controller: descriptionController,
+                        decoration:
+                            const InputDecoration(labelText: 'Description'),
+                      ),
+                    ],
                   ),
-                  TextField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(labelText: 'Description'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final dueDate = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (dueDate != null) {
-                        Provider.of<TaskProvider>(context, listen: false)
-                            .addTask(
-                          titleController.text,
-                          descriptionController.text,
-                          dueDate,
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text('Pick Due Date'),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancel'),
+                  actions: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () async {
+                            final dueDate = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+                            if (dueDate != null) {
+                              selectedDate = dueDate;
+                            }
+                          },
+                          child: const Text('Pick Due Date'),
+                        ),
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Provider.of<TaskProvider>(context,
+                                        listen: false)
+                                    .addTask(
+                                  titleController.text,
+                                  descriptionController.text,
+                                  selectedDate,
+                                );
+                                Navigator.pop(context);
+                              },
+                              child: const Text('Done'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
-        child: const Icon(Icons.add),
+              );
+            },
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            backgroundColor: Colors.red,
+            onPressed: () {
+              Provider.of<TaskProvider>(context, listen: false)
+                  .deleteCompletedTasks();
+            },
+            child: const Icon(Icons.delete),
+          ),
+        ],
       ),
     );
   }
@@ -270,7 +320,7 @@ class TaskDetailsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Description: ${task.description}'),
             const SizedBox(height: 8),
-            Text('Due Date: ${task.dueDate.toLocal()}'),
+            Text('Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}'),
             const SizedBox(height: 8),
             Text('Completed: ${task.completed ? "Yes" : "No"}'),
           ],
@@ -304,7 +354,7 @@ class TaskAdapter extends TypeAdapter<Task> {
       ..title = reader.readString()
       ..description = reader.readString()
       ..completed = reader.readBool()
-      ..dueDate = reader.read() as DateTime;
+      ..dueDate = reader.read() as DateTime?;
   }
 
   @override
