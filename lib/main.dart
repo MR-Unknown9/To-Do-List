@@ -327,7 +327,6 @@ class TaskDetailsScreen extends StatelessWidget {
     final task = ModalRoute.of(context)!.settings.arguments as Task;
     final TextEditingController notesController = TextEditingController();
 
-    // Pre-fill the controller with the existing description (if any)
     notesController.text = task.description;
 
     return Scaffold(
@@ -368,13 +367,12 @@ class TaskDetailsScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Save the updated description to Hive
           task.description = notesController.text;
-          task.save(); // Save changes to Hive
+          task.save();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Task updated successfully!')),
           );
-          Navigator.pop(context); // Go back to the previous screen
+          Navigator.pop(context);
         },
         child: const Icon(Icons.save),
       ),
