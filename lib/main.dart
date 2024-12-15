@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -60,8 +59,7 @@ class MyApp extends StatelessWidget {
               ),
               scaffoldBackgroundColor: const Color(0xFF000100),
             ),
-            themeMode:
-                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             initialRoute: '/',
             routes: {
               '/': (context) => TaskScreen(),
@@ -81,7 +79,7 @@ class Task extends HiveObject {
   late String title;
 
   @HiveField(1)
-  late String description;
+  late String description; // Kept for storage but not used in UI
 
   @HiveField(2)
   late bool completed;
@@ -101,7 +99,7 @@ class TaskProvider extends ChangeNotifier {
     } else {
       return allTasks
           .where((task) =>
-              task.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+          task.title.toLowerCase().contains(_searchQuery.toLowerCase()))
           .toList();
     }
   }
@@ -116,20 +114,6 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateTask(int index, String title, String description,
-      DateTime? dueDate, bool completed) {
-    final task = _taskBox.getAt(index);
-    if (task != null) {
-      task
-        ..title = title
-        ..description = description
-        ..completed = completed
-        ..dueDate = dueDate;
-      task.save();
-      notifyListeners();
-    }
-  }
-
   void deleteTask(int index) {
     _taskBox.deleteAt(index);
     notifyListeners();
@@ -137,7 +121,7 @@ class TaskProvider extends ChangeNotifier {
 
   void deleteCompletedTasks() {
     final completedTasks =
-        _taskBox.values.where((task) => task.completed).toList();
+    _taskBox.values.where((task) => task.completed).toList();
     for (var task in completedTasks) {
       task.delete();
     }
@@ -172,7 +156,6 @@ class ThemeProvider extends ChangeNotifier {
 
 class TaskScreen extends StatelessWidget {
   final TextEditingController titleController = TextEditingController();
-  final TextEditingController descriptionController = TextEditingController();
   final TextEditingController searchController = TextEditingController();
 
   TaskScreen({super.key});
@@ -259,7 +242,6 @@ class TaskScreen extends StatelessWidget {
           FloatingActionButton(
             onPressed: () {
               titleController.clear();
-              descriptionController.clear();
               DateTime? selectedDate;
               showDialog(
                 context: context,
@@ -271,11 +253,6 @@ class TaskScreen extends StatelessWidget {
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(labelText: 'Title'),
-                      ),
-                      TextField(
-                        controller: descriptionController,
-                        decoration:
-                            const InputDecoration(labelText: 'Description'),
                       ),
                     ],
                   ),
@@ -310,10 +287,10 @@ class TaskScreen extends StatelessWidget {
                             TextButton(
                               onPressed: () {
                                 Provider.of<TaskProvider>(context,
-                                        listen: false)
+                                    listen: false)
                                     .addTask(
                                   titleController.text,
-                                  descriptionController.text,
+                                  '', // Empty description
                                   selectedDate,
                                 );
                                 Navigator.pop(context);
@@ -351,6 +328,8 @@ class TaskDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = ModalRoute.of(context)!.settings.arguments as Task;
+    final TextEditingController textField1Controller = TextEditingController();
+    final TextEditingController textField2Controller = TextEditingController();
 
     return Scaffold(
       appBar: AppBar(
@@ -359,31 +338,44 @@ class TaskDetailsScreen extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Text(
-                task.title,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+            Text(
+              'Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}',
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              task.title,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 16),
-            Text('Description: ${task.description}'),
-            const SizedBox(height: 8),
-            Text('Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}'),
-            const SizedBox(height: 8),
-            Text('Completed: ${task.completed ? "Yes" : "No"}'),
+            TextField(
+
+             maxLines: null,
+              controller: textField1Controller,
+              decoration: const InputDecoration(
+                hintText: 'notes'
+
+
+              ),
+            ),
+
+
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Navigate to an edit task screen (to be implemented)
+          // Implement logic to save additional notes or handle editing
         },
-        child: const Icon(Icons.edit),
+        child: const Icon(Icons.save),
       ),
     );
   }
@@ -424,7 +416,7 @@ class TaskAdapter extends TypeAdapter<Task> {
   Task read(BinaryReader reader) {
     return Task()
       ..title = reader.readString()
-      ..description = reader.readString()
+      ..description = reader.readString() // Kept for storage but not used in UI
       ..completed = reader.readBool()
       ..dueDate = reader.read() as DateTime?;
   }
@@ -432,7 +424,7 @@ class TaskAdapter extends TypeAdapter<Task> {
   @override
   void write(BinaryWriter writer, Task obj) {
     writer.writeString(obj.title);
-    writer.writeString(obj.description);
+    writer.writeString(obj.description); // Kept for storage but not used in UI
     writer.writeBool(obj.completed);
     writer.write(obj.dueDate);
   }
