@@ -65,6 +65,7 @@ class MyApp extends StatelessWidget {
               '/': (context) => TaskScreen(),
               '/details': (context) => const TaskDetailsScreen(),
               '/settings': (context) => const SettingsScreen(),
+              '/edit': (context) => const TaskEditScreen(),
             },
           );
         },
@@ -79,7 +80,7 @@ class Task extends HiveObject {
   late String title;
 
   @HiveField(1)
-  late String description; // Kept for storage but not used in UI
+  late String description;
 
   @HiveField(2)
   late bool completed;
@@ -99,7 +100,10 @@ class TaskProvider extends ChangeNotifier {
     } else {
       return allTasks
           .where((task) =>
-          task.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+              task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              task.description
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase()))
           .toList();
     }
   }
@@ -121,20 +125,17 @@ class TaskProvider extends ChangeNotifier {
 
   void deleteCompletedTasks() {
     final completedTasks =
-    _taskBox.values.where((task) => task.completed).toList();
+        _taskBox.values.where((task) => task.completed).toList();
     for (var task in completedTasks) {
       task.delete();
     }
     notifyListeners();
   }
 
-  void toggleTaskCompletion(int index) {
-    final task = _taskBox.getAt(index);
-    if (task != null) {
-      task.completed = !task.completed;
-      task.save();
-      notifyListeners();
-    }
+  void toggleTaskCompletion(Task task) {
+    task.completed = !task.completed;
+    task.save();
+    notifyListeners();
   }
 
   void setSearchQuery(String query) {
@@ -216,14 +217,10 @@ class TaskScreen extends StatelessWidget {
                     ? 'Due: ${task.dueDate!.toLocal()}'
                     : 'No due date',
               ),
-              trailing: IconButton(
-                icon: Icon(
-                  task.completed
-                      ? Icons.check_box
-                      : Icons.check_box_outline_blank,
-                ),
-                onPressed: () {
-                  provider.toggleTaskCompletion(index);
+              trailing: Checkbox(
+                value: task.completed,
+                onChanged: (value) {
+                  provider.toggleTaskCompletion(task);
                 },
               ),
               onLongPress: () {
@@ -287,7 +284,7 @@ class TaskScreen extends StatelessWidget {
                             TextButton(
                               onPressed: () {
                                 Provider.of<TaskProvider>(context,
-                                    listen: false)
+                                        listen: false)
                                     .addTask(
                                   titleController.text,
                                   '', // Empty description
@@ -328,12 +325,22 @@ class TaskDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = ModalRoute.of(context)!.settings.arguments as Task;
-    final TextEditingController textField1Controller = TextEditingController();
-    final TextEditingController textField2Controller = TextEditingController();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Task Details'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                '/edit',
+                arguments: task,
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -341,41 +348,127 @@ class TaskDetailsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}',
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
               task.title,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
-            TextField(
-
-             maxLines: null,
-              controller: textField1Controller,
-              decoration: const InputDecoration(
-                hintText: 'notes'
-
-
-              ),
+            const SizedBox(height: 10),
+            Text(
+              task.description.isNotEmpty ? task.description : 'No description',
+              style: const TextStyle(fontSize: 16),
             ),
-
-
+            const SizedBox(height: 10),
+            Text(
+              task.dueDate != null
+                  ? 'Due Date: ${task.dueDate!.toLocal()}'
+                  : 'No due date',
+              style: const TextStyle(fontSize: 16),
+            ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Implement logic to save additional notes or handle editing
-        },
-        child: const Icon(Icons.save),
+    );
+  }
+}
+
+class TaskEditScreen extends StatefulWidget {
+  const TaskEditScreen({super.key});
+
+  @override
+  _TaskEditScreenState createState() => _TaskEditScreenState();
+}
+
+class _TaskEditScreenState extends State<TaskEditScreen> {
+  late TextEditingController titleController;
+  late TextEditingController notesController;
+  DateTime? selectedDueDate;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final task = ModalRoute.of(context)!.settings.arguments as Task;
+    titleController = TextEditingController(text: task.title);
+    notesController = TextEditingController(text: task.description);
+    selectedDueDate = task.dueDate;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final task = ModalRoute.of(context)!.settings.arguments as Task;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Edit Task'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: () {
+              task.title = titleController.text;
+              task.description = notesController.text;
+              task.dueDate = selectedDueDate;
+              task.save();
+              Navigator.pop(context); // Go back to TaskDetailsScreen
+            },
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: notesController,
+              decoration: const InputDecoration(labelText: 'Description'),
+            ),
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () async {
+                final selectedDate = await showDatePicker(
+                  context: context,
+                  initialDate: selectedDueDate ?? DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (selectedDate != null) {
+                  setState(() {
+                    selectedDueDate = selectedDate;
+                  });
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 5,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      selectedDueDate != null
+                          ? 'Due Date: ${selectedDueDate!.toLocal()}'
+                          : 'No due date',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const Icon(Icons.calendar_today, color: Colors.blue),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -386,24 +479,21 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Dark Mode', style: TextStyle(fontSize: 18)),
-            Switch(
-              value: themeProvider.isDarkMode,
-              onChanged: (value) {
-                themeProvider.toggleTheme();
-              },
-            ),
-          ],
-        ),
+      appBar: AppBar(
+        title: const Text('Settings'),
       ),
+      body: Consumer<ThemeProvider>(builder: (context, themeProvider, child) {
+        return ListTile(
+          title: const Text('Dark Mode'),
+          trailing: Switch(
+            value: themeProvider.isDarkMode,
+            onChanged: (value) {
+              themeProvider.toggleTheme();
+            },
+          ),
+        );
+      }),
     );
   }
 }
@@ -416,7 +506,7 @@ class TaskAdapter extends TypeAdapter<Task> {
   Task read(BinaryReader reader) {
     return Task()
       ..title = reader.readString()
-      ..description = reader.readString() // Kept for storage but not used in UI
+      ..description = reader.readString()
       ..completed = reader.readBool()
       ..dueDate = reader.read() as DateTime?;
   }
@@ -424,7 +514,7 @@ class TaskAdapter extends TypeAdapter<Task> {
   @override
   void write(BinaryWriter writer, Task obj) {
     writer.writeString(obj.title);
-    writer.writeString(obj.description); // Kept for storage but not used in UI
+    writer.writeString(obj.description);
     writer.writeBool(obj.completed);
     writer.write(obj.dueDate);
   }
