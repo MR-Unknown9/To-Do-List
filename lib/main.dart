@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -20,15 +21,54 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => TaskProvider(),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        initialRoute: '/',
-        routes: {
-          '/': (context) => TaskScreen(),
-          '/details': (context) => const TaskDetailsScreen(),
-          '/settings': (context) => const SettingsScreen(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => TaskProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              primaryColor: const Color(0xFF94C5CC),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF000100),
+                titleTextStyle: TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              floatingActionButtonTheme: FloatingActionButtonThemeData(
+                backgroundColor: const Color(0xFF94C5CC),
+              ),
+              scaffoldBackgroundColor: const Color(0xFFF8F8F8),
+            ),
+            darkTheme: ThemeData.dark().copyWith(
+              primaryColor: const Color(0xFF94C5CC),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF000100),
+                titleTextStyle: TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              floatingActionButtonTheme: FloatingActionButtonThemeData(
+                backgroundColor: const Color(0xFF94C5CC),
+              ),
+              scaffoldBackgroundColor: const Color(0xFF000100),
+            ),
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            initialRoute: '/',
+            routes: {
+              '/': (context) => TaskScreen(),
+              '/details': (context) => const TaskDetailsScreen(),
+              '/settings': (context) => const SettingsScreen(),
+            },
+          );
         },
       ),
     );
@@ -119,6 +159,17 @@ class TaskProvider extends ChangeNotifier {
   }
 }
 
+class ThemeProvider extends ChangeNotifier {
+  bool _isDarkMode = false;
+
+  bool get isDarkMode => _isDarkMode;
+
+  void toggleTheme() {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+  }
+}
+
 class TaskScreen extends StatelessWidget {
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -130,22 +181,14 @@ class TaskScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF36363E),
-        title: const Text(
-          'To-Do List',
-          style: TextStyle(
-            color: Color(0xFFFBFEF9),
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('To-Do List'),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Container(
               width: 170,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFFB4D2E7),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextField(
@@ -252,6 +295,8 @@ class TaskScreen extends StatelessWidget {
                               selectedDate = dueDate;
                             }
                           },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFB4D2E7)),
                           child: const Text('Pick Due Date'),
                         ),
                         Row(
@@ -314,10 +359,18 @@ class TaskDetailsScreen extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text('Title: ${task.title}', style: const TextStyle(fontSize: 20)),
-            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                task.title,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text('Description: ${task.description}'),
             const SizedBox(height: 8),
             Text('Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}'),
@@ -325,6 +378,12 @@ class TaskDetailsScreen extends StatelessWidget {
             Text('Completed: ${task.completed ? "Yes" : "No"}'),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Navigate to an edit task screen (to be implemented)
+        },
+        child: const Icon(Icons.edit),
       ),
     );
   }
@@ -335,10 +394,23 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: const Center(
-        child: Text('Settings Page', style: TextStyle(fontSize: 24)),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Dark Mode', style: TextStyle(fontSize: 18)),
+            Switch(
+              value: themeProvider.isDarkMode,
+              onChanged: (value) {
+                themeProvider.toggleTheme();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
