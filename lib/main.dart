@@ -59,8 +59,7 @@ class MyApp extends StatelessWidget {
               ),
               scaffoldBackgroundColor: const Color(0xFF000100),
             ),
-            themeMode:
-                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             initialRoute: '/',
             routes: {
               '/': (context) => TaskScreen(),
@@ -203,34 +202,51 @@ class TaskScreen extends StatelessWidget {
           itemCount: provider.tasks.length,
           itemBuilder: (context, index) {
             final task = provider.tasks[index];
-            return ListTile(
-              title: Text(
-                task.title,
-                style: TextStyle(
-                  fontSize: 20,
-                  decoration: task.completed
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
-                ),
-              ),
-              subtitle: Text(
-                task.dueDate != null
-                    ? 'Due: ${task.dueDate!.toLocal()}'
-                    : 'No due date',
-              ),
-              trailing: Checkbox(
-                value: task.completed,
-                onChanged: (value) {
-                  provider.toggleTaskCompletion(task);
-                },
-              ),
-              onLongPress: () {
-                provider.deleteTask(index);
-              },
-              onTap: () {
-                Navigator.pushNamed(context, '/details', arguments: task);
-              },
-            );
+            Color backgroundColor = task.completed
+                ? const Color.fromARGB(255, 62, 172, 66)
+                : const Color.fromARGB(255, 204, 58, 58); // Use a green color for completed tasks
+
+            return Container(
+  margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 8), // Add margin
+  decoration: BoxDecoration(
+    color: backgroundColor,
+    borderRadius: BorderRadius.circular(20), // Add border radius
+    // border: Border.all(
+    //   color: task.completed ? const Color.fromARGB(255, 23, 230, 30) : Colors.grey, // Border color
+    //   width: 2, // Border width
+    // ),
+  ),
+  child: ListTile(
+    title: Text(
+      task.title,
+      style: TextStyle(
+        fontSize: 20,
+        decoration: task.completed
+            ? TextDecoration.lineThrough
+            : TextDecoration.none,
+      ),
+    ),
+    subtitle: Text(
+      task.dueDate != null
+          ? 'Due: ${task.dueDate!.toLocal()}'
+          : 'No due date',
+    ),
+    trailing: Checkbox(
+      value: task.completed,
+      onChanged: (value) {
+        provider.toggleTaskCompletion(task);
+      },
+    ),
+    onLongPress: () {
+      provider.deleteTask(index);
+    },
+    onTap: () {
+      Navigator.pushNamed(context, '/details', arguments: task);
+    },
+  ),
+);
+
+
           },
         );
       }),
