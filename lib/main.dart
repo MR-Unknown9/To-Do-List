@@ -29,8 +29,38 @@ class MyApp extends StatelessWidget {
         builder: (context, themeProvider, child) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme:
-                themeProvider.isDarkMode ? ThemeData.dark() : ThemeData.light(),
+            theme: ThemeData(
+              primaryColor: const Color(0xFF94C5CC),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF000100),
+                titleTextStyle: TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              floatingActionButtonTheme: FloatingActionButtonThemeData(
+                backgroundColor: const Color(0xFF94C5CC),
+              ),
+              scaffoldBackgroundColor: const Color(0xFFF8F8F8),
+            ),
+            darkTheme: ThemeData.dark().copyWith(
+              primaryColor: const Color(0xFF94C5CC),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF000100),
+                titleTextStyle: TextStyle(
+                  color: Color(0xFFF8F8F8),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              floatingActionButtonTheme: FloatingActionButtonThemeData(
+                backgroundColor: const Color(0xFF94C5CC),
+              ),
+              scaffoldBackgroundColor: const Color(0xFF000100),
+            ),
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             initialRoute: '/',
             routes: {
               '/': (context) => TaskScreen(),
@@ -70,7 +100,10 @@ class TaskProvider extends ChangeNotifier {
     } else {
       return allTasks
           .where((task) =>
-              task.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+              task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              task.description
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase()))
           .toList();
     }
   }
@@ -83,20 +116,6 @@ class TaskProvider extends ChangeNotifier {
       ..dueDate = dueDate;
     _taskBox.add(task);
     notifyListeners();
-  }
-
-  void updateTask(int index, String title, String description,
-      DateTime? dueDate, bool completed) {
-    final task = _taskBox.getAt(index);
-    if (task != null) {
-      task
-        ..title = title
-        ..description = description
-        ..completed = completed
-        ..dueDate = dueDate;
-      task.save();
-      notifyListeners();
-    }
   }
 
   void deleteTask(int index) {
@@ -113,13 +132,10 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleTaskCompletion(int index) {
-    final task = _taskBox.getAt(index);
-    if (task != null) {
-      task.completed = !task.completed;
-      task.save();
-      notifyListeners();
-    }
+  void toggleTaskCompletion(Task task) {
+    task.completed = !task.completed;
+    task.save();
+    notifyListeners();
   }
 
   void setSearchQuery(String query) {
@@ -141,7 +157,6 @@ class ThemeProvider extends ChangeNotifier {
 
 class TaskScreen extends StatelessWidget {
   final TextEditingController titleController = TextEditingController();
-  final TextEditingController descriptionController = TextEditingController();
   final TextEditingController searchController = TextEditingController();
 
   TaskScreen({super.key});
@@ -150,22 +165,14 @@ class TaskScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF36363E),
-        title: const Text(
-          'To-Do List',
-          style: TextStyle(
-            color: Color(0xFFFBFEF9),
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('To-Do List'),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Container(
               width: 170,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFFB4D2E7),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextField(
@@ -210,14 +217,10 @@ class TaskScreen extends StatelessWidget {
                     ? 'Due: ${task.dueDate!.toLocal()}'
                     : 'No due date',
               ),
-              trailing: IconButton(
-                icon: Icon(
-                  task.completed
-                      ? Icons.check_box
-                      : Icons.check_box_outline_blank,
-                ),
-                onPressed: () {
-                  provider.toggleTaskCompletion(index);
+              trailing: Checkbox(
+                value: task.completed,
+                onChanged: (value) {
+                  provider.toggleTaskCompletion(task);
                 },
               ),
               onLongPress: () {
@@ -236,7 +239,6 @@ class TaskScreen extends StatelessWidget {
           FloatingActionButton(
             onPressed: () {
               titleController.clear();
-              descriptionController.clear();
               DateTime? selectedDate;
               showDialog(
                 context: context,
@@ -248,11 +250,6 @@ class TaskScreen extends StatelessWidget {
                       TextField(
                         controller: titleController,
                         decoration: const InputDecoration(labelText: 'Title'),
-                      ),
-                      TextField(
-                        controller: descriptionController,
-                        decoration:
-                            const InputDecoration(labelText: 'Description'),
                       ),
                     ],
                   ),
@@ -272,6 +269,8 @@ class TaskScreen extends StatelessWidget {
                               selectedDate = dueDate;
                             }
                           },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFB4D2E7)),
                           child: const Text('Pick Due Date'),
                         ),
                         Row(
@@ -288,7 +287,7 @@ class TaskScreen extends StatelessWidget {
                                         listen: false)
                                     .addTask(
                                   titleController.text,
-                                  descriptionController.text,
+                                  '', // Empty description
                                   selectedDate,
                                 );
                                 Navigator.pop(context);
@@ -326,6 +325,10 @@ class TaskDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final task = ModalRoute.of(context)!.settings.arguments as Task;
+    final TextEditingController notesController = TextEditingController();
+
+    // Pre-fill the controller with the existing description (if any)
+    notesController.text = task.description;
 
     return Scaffold(
       appBar: AppBar(
@@ -336,15 +339,44 @@ class TaskDetailsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Title: ${task.title}', style: const TextStyle(fontSize: 20)),
+            Text(
+              'Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}',
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('Description: ${task.description}'),
-            const SizedBox(height: 8),
-            Text('Due Date: ${task.dueDate?.toLocal() ?? 'No due date'}'),
-            const SizedBox(height: 8),
-            Text('Completed: ${task.completed ? "Yes" : "No"}'),
+            Text(
+              task.title,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              maxLines: null,
+              controller: notesController,
+              decoration: const InputDecoration(
+                labelText: 'Notes',
+                border: OutlineInputBorder(),
+              ),
+            ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Save the updated description to Hive
+          task.description = notesController.text;
+          task.save(); // Save changes to Hive
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Task updated successfully!')),
+          );
+          Navigator.pop(context); // Go back to the previous screen
+        },
+        child: const Icon(Icons.save),
       ),
     );
   }
