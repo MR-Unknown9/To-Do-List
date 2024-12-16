@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
+// Define color constants
+const Color lightGrey = Color(0xFFEFF1F3);
+const Color darkGrey = Color(0xFF696773);
+const Color teal = Color(0xFF009FB7);
+const Color yellow = Color(0xFFFED766);
+const Color dark = Color(0xFF272727);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
@@ -29,37 +36,10 @@ class MyApp extends StatelessWidget {
         builder: (context, themeProvider, child) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              primaryColor: const Color(0xFF94C5CC),
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Color(0xFF000100),
-                titleTextStyle: TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              floatingActionButtonTheme: FloatingActionButtonThemeData(
-                backgroundColor: const Color(0xFF94C5CC),
-              ),
-              scaffoldBackgroundColor: const Color(0xFFF8F8F8),
-            ),
-            darkTheme: ThemeData.dark().copyWith(
-              primaryColor: const Color(0xFF94C5CC),
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Color(0xFF000100),
-                titleTextStyle: TextStyle(
-                  color: Color(0xFFF8F8F8),
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              floatingActionButtonTheme: FloatingActionButtonThemeData(
-                backgroundColor: const Color(0xFF94C5CC),
-              ),
-              scaffoldBackgroundColor: const Color(0xFF000100),
-            ),
-            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            theme: _buildLightTheme(),
+            darkTheme: _buildDarkTheme(),
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             initialRoute: '/',
             routes: {
               '/': (context) => TaskScreen(),
@@ -70,6 +50,43 @@ class MyApp extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  ThemeData _buildLightTheme() {
+    return ThemeData(
+      primaryColor: lightGrey,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: lightGrey,
+        titleTextStyle: TextStyle(
+          color: dark,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: teal,
+        foregroundColor: yellow,
+      ),
+      scaffoldBackgroundColor: lightGrey,
+    );
+  }
+
+  ThemeData _buildDarkTheme() {
+    return ThemeData.dark().copyWith(
+      primaryColor: dark,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: dark,
+        titleTextStyle: TextStyle(
+          color: lightGrey,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: yellow,
+      ),
+      scaffoldBackgroundColor: dark,
     );
   }
 }
@@ -94,17 +111,13 @@ class TaskProvider extends ChangeNotifier {
   String _searchQuery = '';
 
   List<Task> get tasks {
-    final allTasks = _taskBox.values.toList();
     if (_searchQuery.isEmpty) {
-      return allTasks;
+      return _taskBox.values.toList();
     } else {
-      return allTasks
-          .where((task) =>
-              task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              task.description
-                  .toLowerCase()
-                  .contains(_searchQuery.toLowerCase()))
-          .toList();
+      return _taskBox.values.where((task) {
+        return task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            task.description.toLowerCase().contains(_searchQuery.toLowerCase());
+      }).toList();
     }
   }
 
@@ -124,11 +137,9 @@ class TaskProvider extends ChangeNotifier {
   }
 
   void deleteCompletedTasks() {
-    final completedTasks =
-        _taskBox.values.where((task) => task.completed).toList();
-    for (var task in completedTasks) {
+    _taskBox.values.where((task) => task.completed).toList().forEach((task) {
       task.delete();
-    }
+    });
     notifyListeners();
   }
 
@@ -157,28 +168,35 @@ class ThemeProvider extends ChangeNotifier {
 
 class TaskScreen extends StatelessWidget {
   final TextEditingController titleController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
   final TextEditingController searchController = TextEditingController();
 
   TaskScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('To-Do List'),
+        title: Text(
+          'To-Do List',
+          style: TextStyle(color: isDarkMode ? lightGrey : dark),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Container(
               width: 170,
               decoration: BoxDecoration(
-                color: const Color(0xFFB4D2E7),
+                color: isDarkMode ? lightGrey : dark,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: TextField(
                 controller: searchController,
                 decoration: InputDecoration(
                   hintText: 'Search...',
+                  hintStyle: TextStyle(color: isDarkMode ? teal : yellow),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                 ),
@@ -197,140 +215,136 @@ class TaskScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<TaskProvider>(builder: (context, provider, child) {
-        return ListView.builder(
-          itemCount: provider.tasks.length,
-          itemBuilder: (context, index) {
-            final task = provider.tasks[index];
-            Color backgroundColor = task.completed
-                ? const Color.fromARGB(255, 62, 172, 66)
-                : const Color.fromARGB(255, 204, 58, 58); // Use a green color for completed tasks
-
-            return Container(
-  margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 8), // Add margin
-  decoration: BoxDecoration(
-    color: backgroundColor,
-    borderRadius: BorderRadius.circular(20), // Add border radius
-    // border: Border.all(
-    //   color: task.completed ? const Color.fromARGB(255, 23, 230, 30) : Colors.grey, // Border color
-    //   width: 2, // Border width
-    // ),
-  ),
-  child: ListTile(
-    title: Text(
-      task.title,
-      style: TextStyle(
-        fontSize: 20,
-        decoration: task.completed
-            ? TextDecoration.lineThrough
-            : TextDecoration.none,
+      body: Consumer<TaskProvider>(
+        builder: (context, provider, child) {
+          return ListView.builder(
+            itemCount: provider.tasks.length,
+            itemBuilder: (context, index) {
+              final task = provider.tasks[index];
+              return TaskListItem(task: task, isDarkMode: isDarkMode);
+            },
+          );
+        },
       ),
-    ),
-    subtitle: Text(
-      task.dueDate != null
-          ? 'Due: ${task.dueDate!.toLocal()}'
-          : 'No due date',
-    ),
-    trailing: Checkbox(
-      value: task.completed,
-      onChanged: (value) {
-        provider.toggleTaskCompletion(task);
-      },
-    ),
-    onLongPress: () {
-      provider.deleteTask(index);
-    },
-    onTap: () {
-      Navigator.pushNamed(context, '/details', arguments: task);
-    },
-  ),
-);
+      floatingActionButton: _buildFloatingActionButton(context, isDarkMode),
+    );
+  }
 
-
-          },
-        );
-      }),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            onPressed: () {
-              titleController.clear();
-              DateTime? selectedDate;
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Add Task'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: titleController,
-                        decoration: const InputDecoration(labelText: 'Title'),
+  Widget _buildFloatingActionButton(BuildContext context, bool isDarkMode) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        FloatingActionButton(
+          onPressed: () {
+            titleController.clear();
+            descriptionController.clear();
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text(
+                  'Add Task',
+                  style: TextStyle(color: isDarkMode ? lightGrey : dark),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Title',
+                        labelStyle:
+                            TextStyle(color: isDarkMode ? lightGrey : dark),
                       ),
-                    ],
-                  ),
-                  actions: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () async {
-                            final dueDate = await showDatePicker(
-                              context: context,
-                              initialDate: DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                            );
-                            if (dueDate != null) {
-                              selectedDate = dueDate;
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFB4D2E7)),
-                          child: const Text('Pick Due Date'),
-                        ),
-                        Row(
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                              },
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Provider.of<TaskProvider>(context,
-                                        listen: false)
-                                    .addTask(
-                                  titleController.text,
-                                  '', // Empty description
-                                  selectedDate,
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: const Text('Done'),
-                            ),
-                          ],
-                        ),
-                      ],
+                    ),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'Description',
+                        labelStyle:
+                            TextStyle(color: isDarkMode ? lightGrey : dark),
+                      ),
                     ),
                   ],
                 ),
-              );
-            },
-            child: const Icon(Icons.add),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: Text('Cancel',
+                        style: TextStyle(color: isDarkMode ? lightGrey : dark)),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Provider.of<TaskProvider>(context, listen: false).addTask(
+                          titleController.text,
+                          descriptionController.text,
+                          null);
+                      Navigator.pop(context);
+                    },
+                    child: Text('Done',
+                        style: TextStyle(color: isDarkMode ? yellow : teal)),
+                  ),
+                ],
+              ),
+            );
+          },
+          child: Icon(Icons.add, color: isDarkMode ? teal : yellow),
+        ),
+        const SizedBox(height: 10),
+        FloatingActionButton(
+          onPressed: () {
+            Provider.of<TaskProvider>(context, listen: false)
+                .deleteCompletedTasks();
+          },
+          child: Icon(Icons.delete, color: isDarkMode ? teal : yellow),
+        ),
+      ],
+    );
+  }
+}
+
+class TaskListItem extends StatelessWidget {
+  final Task task;
+  final bool isDarkMode;
+
+  const TaskListItem({Key? key, required this.task, required this.isDarkMode})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 8),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
+      child: ListTile(
+        title: Text(
+          task.title,
+          style: TextStyle(
+            fontSize: 20,
+            color: isDarkMode ? lightGrey : dark,
+            decoration: task.completed
+                ? TextDecoration.lineThrough
+                : TextDecoration.none,
           ),
-          const SizedBox(height: 10),
-          FloatingActionButton(
-            backgroundColor: Colors.red,
-            onPressed: () {
-              Provider.of<TaskProvider>(context, listen: false)
-                  .deleteCompletedTasks();
-            },
-            child: const Icon(Icons.delete),
-          ),
-        ],
+        ),
+        subtitle: Text(
+          task.description.isNotEmpty ? task.description : 'No description',
+          style: TextStyle(color: isDarkMode ? lightGrey : dark),
+        ),
+        trailing: Checkbox(
+          value: task.completed,
+          onChanged: (value) {
+            Provider.of<TaskProvider>(context, listen: false)
+                .toggleTaskCompletion(task);
+          },
+        ),
+        onLongPress: () {
+          Provider.of<TaskProvider>(context, listen: false)
+              .deleteTask(task.key);
+        },
+        onTap: () {
+          Navigator.pushNamed(context, '/details', arguments: task);
+        },
       ),
     );
   }
@@ -350,11 +364,7 @@ class TaskDetailsScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              Navigator.pushNamed(
-                context,
-                '/edit',
-                arguments: task,
-              );
+              Navigator.pushNamed(context, '/edit', arguments: task);
             },
           ),
         ],
@@ -371,13 +381,6 @@ class TaskDetailsScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               task.description.isNotEmpty ? task.description : 'No description',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              task.dueDate != null
-                  ? 'Due Date: ${task.dueDate!.toLocal()}'
-                  : 'No due date',
               style: const TextStyle(fontSize: 16),
             ),
           ],
@@ -397,7 +400,6 @@ class TaskEditScreen extends StatefulWidget {
 class _TaskEditScreenState extends State<TaskEditScreen> {
   late TextEditingController titleController;
   late TextEditingController notesController;
-  DateTime? selectedDueDate;
 
   @override
   void didChangeDependencies() {
@@ -405,11 +407,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final task = ModalRoute.of(context)!.settings.arguments as Task;
     titleController = TextEditingController(text: task.title);
     notesController = TextEditingController(text: task.description);
-    selectedDueDate = task.dueDate;
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final task = ModalRoute.of(context)!.settings.arguments as Task;
 
     return Scaffold(
@@ -421,7 +423,6 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             onPressed: () {
               task.title = titleController.text;
               task.description = notesController.text;
-              task.dueDate = selectedDueDate;
               task.save();
               Navigator.pop(context); // Go back to TaskDetailsScreen
             },
@@ -441,48 +442,6 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             TextField(
               controller: notesController,
               decoration: const InputDecoration(labelText: 'Description'),
-            ),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () async {
-                final selectedDate = await showDatePicker(
-                  context: context,
-                  initialDate: selectedDueDate ?? DateTime.now(),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2100),
-                );
-                if (selectedDate != null) {
-                  setState(() {
-                    selectedDueDate = selectedDate;
-                  });
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 5,
-                      offset: Offset(2, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      selectedDueDate != null
-                          ? 'Due Date: ${selectedDueDate!.toLocal()}'
-                          : 'No due date',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const Icon(Icons.calendar_today, color: Colors.blue),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
